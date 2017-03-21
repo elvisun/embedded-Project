@@ -49,7 +49,7 @@ void  TaskInput(void *data);					// Function prototypes of the task
 void	TaskControl (void *data);				// Function prototypes of the task
 void  TaskStart(void *data);              // Function prototype of startup task
 void  DispStr(int x, int y, char *s);
-void  TaskLogging (void *data) ;          // Function to print out the position
+//void  TaskLogging (void *data) ;          // Function to print out the position
 
 
 void main (void)
@@ -110,22 +110,22 @@ nodebug void TaskInput (void *date)
 }
 
 
-nodebug void TaskLogging (void *data){
-    auto UBYTE err;
-    char display[64];
-    int i;    // counter variable for loop
-    for(;;){
-        // wait for the semaphore from the task control. Once given, print data.
-        OSSemPend(loggingSem, 0, &err);
+// nodebug void TaskLogging (void *data){
+//     auto UBYTE err;
+//     char display[64];
+//     int i;    // counter variable for loop
+//     for(;;){
+//         // wait for the semaphore from the task control. Once given, print data.
+//         OSSemPend(loggingSem, 0, &err);
         
-        for(i = 0; i < arraySize; i++) {
+//         for(i = 0; i < arraySize; i++) {
 
-            sprintf(display, "%f", proportionalArr[i]);
-            DispStr(0, 35+i, display);
+//             sprintf(display, "%f", proportionalArr[i]);
+//             DispStr(0, 35+i, display);
 
-        }
-    }
-}
+//         }
+//     }
+// }
 
 nodebug void TaskControl (void *data)
 {
