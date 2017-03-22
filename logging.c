@@ -30,7 +30,10 @@
 char	TMRB_MSB;									// this 8-bit value will be written to TBM2R (bits 8 and 9 of TMRB2 match register)
 char	TMRB_LSB;									// this 8-bit value will be written to TBL2R (bits 0 to 7 of TMRB2 match register)
 int	PulseWidth;                         // Duty Cycle of the PWM signal
+int   mode;
+int   side;
 float	PotNorm;										// Scaled value of the POT reading
+float prev, currSum, kp, kd, ki;
 
 int tubeHeight;
 int ballXPos, ballYPos;
@@ -83,6 +86,10 @@ void TaskStart (void *data)
    DispStr(0, 14, "#Task switch/sec: xxxxx");
    DispStr(0, 15, "<-PRESS 'Q' TO QUIT->");
 
+   mode = 1;
+   prev = 0;
+   currSum = 0;
+   side = -1;
    for (;;) {
          ShowStat();
          OSTimeDly(OS_TICKS_PER_SEC);     // Wait one second
@@ -98,20 +105,25 @@ nodebug void TaskInput (void *date)
    int	PotRead;
 
    for(;;) {
-      OSSemPend(ADCSem,0,&err);
-   	PotRead = anaIn(POT_CHAN);					// Read POT output voltage
-      OSSemPost(ADCSem);
+      if (mode == 1){
+         OSSemPend(ADCSem,0,&err);
+         PotRead = anaIn(POT_CHAN);					// Read POT output voltage
+         OSSemPost(ADCSem);
 
-   	sprintf(display, "%d", PotRead);			// Write POT voltage on STDIO
-   	DispStr(22, 10, display);
+      	sprintf(display, "%d", PotRead);			// Write POT voltage on STDIO
+        	DispStr(22, 10, display);
 
 
-   	if (PotRead >= PotMax && PotRead <= PotMin)
-   		PotNorm = ((float)PotRead-(float)PotMax)/((float)PotMin-(float)PotMax);
-   	else if (PotRead < PotMax)
-   		PotNorm = 0;
-   	else if (PotRead > PotMin)
-   		PotNorm = 1;
+      	if (PotRead >= PotMax && PotRead <= PotMin)
+   	       PotNorm = ((float)PotRead-(float)PotMax)/((float)PotMin-(float)PotMax);
+   	   else if (PotRead < PotMax)
+   		    PotNorm = 0;
+   	   else if (PotRead > PotMin)
+   		    PotNorm = 1;
+   }
+   else {
+      PotNorm = 0.5;
+   }
 
       OSTimeDly(OS_TICKS_PER_SEC);
    }
@@ -155,12 +167,15 @@ nodebug void TaskLogging (void *data){
 nodebug void TaskControl (void *data)
 {
    auto UBYTE err;
-   int IrSen counter;
+   int IrSen, counter;
    float IrNorm, ErrSig, MIN_PW, KP;
    float dataStorage[90]; 
    counter = 0;
+   ErrSig = 0;
    MIN_PW = 0.6;
-   KP = 0.7;
+   kp = 0.6078;
+   ki = 0.0005;
+   kd = 5;
    for (;;) {
 
       OSSemPend(ADCSem,0,&err);
@@ -172,8 +187,23 @@ nodebug void TaskControl (void *data)
    		IrNorm = 0;
    	else if (IrSen > IrVmin)
    		IrNorm = 1;
+
+      prev = ErrSig;
       ErrSig = PotNorm-IrNorm;
-      PulseWidth = (int)((MIN_PW - KP*ErrSig)*MAX_PWIDTH);
+
+      if (ErrSig > 0){
+         side = 1;
+      }
+      else{
+         side = -1;
+      }
+      if ((ErrSig * side) > 0){
+         currSum = currSum + ErrSig;
+      }
+      else {
+         currSum = ErrSig;
+      }
+      PulseWidth = (int)((MIN_PW - (kp*ErrSig + ki*currSum + (ErrSig - prev)*kd) )*MAX_PWIDTH);
       if (PulseWidth > MAX_PWIDTH){
       	PulseWidth = MAX_PWIDTH;}
       else if (PulseWidth < 0){
@@ -270,8 +300,35 @@ void ShowStat()
 
    if (kbhit()) {										// See if key has been pressed
       Key = getchar();
-      if (Key == 0x71 || Key == 0x51)			// Yes, see if it's the q or Q key
+      if (Key == 0x71 || Key == 0x51)	{		// Yes, see if it's the q or Q key
          exit(0);
+      } 
+      else if (Key == 0x4D || Key == 0x6D){    // check if m or M is pressed
+         if (mode == 1){
+            mode = 0;
+         }
+         else          {
+            mode = 1;
+         }
+      }
+      else if (Key == 0x61){
+         kp = kp * 1.05;
+      }
+      else if (Key == 0x7A){
+         kp = kp * 0.95;
+      }
+      else if (Key == 0x73){
+         ki = ki * 1.05;
+      }
+      else if (Key == 0x78){
+         ki = ki * 0.95;
+      }
+      else if (Key == 0x64){
+         kd = kd * 1.05;
+      }
+      else if (Key == 0x63){
+         kd = kd * 0.95;
+      }
    }
 }
 
